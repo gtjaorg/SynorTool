@@ -20,6 +20,7 @@
     <Copy SourceFiles="$(MSBuildProjectDirectory)/Web/dist/index.html;$(MSBuildProjectDirectory)/Web/dist/translation.html;$(MSBuildProjectDirectory)/Web/dist/settings.html" DestinationFolder="$(TargetDir)Web" />
   </Target>
   <Target Name="BuildNativePanel" AfterTargets="Build">
+    <Exec Command="xcrun swiftc -parse-as-library -emit-library -module-name SynorAppleTranslation -target arm64-apple-macos26.0 -Xlinker -install_name -Xlinker @rpath/libSynorAppleTranslation.dylib &quot;$(MSBuildProjectDirectory)/AppleTranslation.swift&quot; -o &quot;$(TargetDir)libSynorAppleTranslation.dylib&quot;" />
     <Exec Command="xcrun clang -fobjc-arc -Wall -Wextra -Werror -mmacosx-version-min=26.0 -dynamiclib -framework AppKit -framework ApplicationServices -framework Security -framework WebKit -framework QuartzCore &quot;$(MSBuildProjectDirectory)/NativePanel.m&quot; &quot;$(MSBuildProjectDirectory)/SynorMarkdown.m&quot; -I&quot;$(MSBuildProjectDirectory)&quot; -o &quot;$(TargetDir)libSynorPanel.dylib&quot;" />
   </Target>
 </Project>

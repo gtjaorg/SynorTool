@@ -40,7 +40,7 @@ export function Translation() {
     };
   },[]);
   return <section className="settings-panel translation-panel translation-standalone">
-      <p className="settings-description">自动识别原文语言，使用当前 AI 配置翻译。</p>
+      <p className="settings-description">自动识别原文语言，使用配置中选择的翻译引擎。</p>
       <label>目标语言<select value={target} disabled={busy} onChange={e=>{setTarget(e.target.value);setResult('');setCopied(false);}}>{['简体中文','繁體中文','English','日本語','한국어','Français','Deutsch'].map(language=><option key={language}>{language}</option>)}</select></label>
       <label>原文<textarea rows={5} value={source} disabled={busy} placeholder="输入或粘贴需要翻译的文字…" onChange={e=>{setSource(e.target.value);setResult('');setCopied(false);}}/></label>
       <div className="translation-actions"><span className="settings-description">译文不会写入聊天记录。</span>{busy ? <button type="button" onClick={()=>{

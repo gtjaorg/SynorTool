@@ -58,6 +58,16 @@ internal sealed record AiSettings
     public int ContextCompressionBytes { get; init; } = 128 * 1024;
 
     /// <summary>
+    /// 翻译引擎：model 使用当前模型服务，apple 使用 Apple Translation 本地翻译并在失败时回退到模型。
+    /// </summary>
+    public string TranslationEngine { get; init; } = ModelTranslationEngine;
+
+    /// <summary>使用当前模型服务翻译。</summary>
+    internal const string ModelTranslationEngine = "model";
+    /// <summary>使用 Apple Translation 本地翻译。</summary>
+    internal const string AppleTranslationEngine = "apple";
+
+    /// <summary>
     /// 请求使用的 User-Agent；部分中转服务只放行已知客户端标识，留空时使用默认值。
     /// </summary>
     public string UserAgent { get; init; } = DefaultUserAgent;
@@ -110,6 +120,7 @@ internal sealed record AiSettings
         }
         settings = settings with { Model = settings.Model?.Trim() ?? "", ApiKey = settings.ApiKey?.Trim() ?? "", SystemPrompt = settings.SystemPrompt ?? "", UserAgent = string.IsNullOrWhiteSpace(settings.UserAgent) ? DefaultUserAgent : settings.UserAgent.Trim() };
         settings = settings with { BaseUrl = NormalizeBaseUrl(settings.BaseUrl) };
+        settings = settings with { TranslationEngine = settings.TranslationEngine == AppleTranslationEngine ? AppleTranslationEngine : ModelTranslationEngine };
         settings = settings with { BalanceUrl = settings.BalanceUrl?.Trim() ?? "", BalancePath = settings.BalancePath?.Trim() ?? "", BalanceCurrencyPath = settings.BalanceCurrencyPath?.Trim() ?? "" };
         if (settings.BalanceUrl.Length > 0)
         {

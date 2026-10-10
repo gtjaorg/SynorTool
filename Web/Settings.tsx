@@ -1,6 +1,6 @@
 import {useEffect,useRef,useState} from 'react';
 
-type Config = {BalanceUrl:string;BalancePath:string;BalanceCurrencyPath:string;BaseUrl:string;Model:string;ApiKey:string;SystemPrompt:string;ReasoningControl:boolean;ContextCompressionBytes:number;WorkingDirectory:string;UserAgent:string;Cumulative?:{InputTokens:number;OutputTokens:number;TotalTokens:number;CachedTokens:number}};
+type Config = {BalanceUrl:string;BalancePath:string;BalanceCurrencyPath:string;BaseUrl:string;Model:string;ApiKey:string;SystemPrompt:string;ReasoningControl:boolean;ContextCompressionBytes:number;WorkingDirectory:string;UserAgent:string;TranslationEngine:'model'|'apple';Cumulative?:{InputTokens:number;OutputTokens:number;TotalTokens:number;CachedTokens:number}};
 
 /**
  * 聊天页只保留入口按钮。配置改为独立原生窗口，避免主页面跳转丢对话，也不再被弹层遮住聊天。
@@ -19,7 +19,7 @@ export function SettingsPage() {
   const [loadingBalance,setLoadingBalance]=useState(false);
   const [balance,setBalance]=useState('');
   const [balanceError,setBalanceError]=useState('');
-  const [form,setForm]=useState<Config>({BalanceUrl:'',BalancePath:'balance_infos[0].total_balance',BalanceCurrencyPath:'balance_infos[0].currency',BaseUrl:'',Model:'',ApiKey:'',SystemPrompt:'',ReasoningControl:true,ContextCompressionBytes:131072,WorkingDirectory:'',UserAgent:''});
+  const [form,setForm]=useState<Config>({BalanceUrl:'',BalancePath:'balance_infos[0].total_balance',BalanceCurrencyPath:'balance_infos[0].currency',BaseUrl:'',Model:'',ApiKey:'',SystemPrompt:'',ReasoningControl:true,ContextCompressionBytes:131072,WorkingDirectory:'',UserAgent:'',TranslationEngine:'model'});
   const [models,setModels]=useState<string[]>([]);
   const [loadingModels,setLoadingModels]=useState(false);
   const [defaultPrompt,setDefaultPrompt]=useState('');
@@ -105,6 +105,7 @@ export function SettingsPage() {
       {tab==='context' && <div>
       <label>工作目录<input required value={form.WorkingDirectory} placeholder="例如 ~/Desktop/MyProject" onChange={e=>setForm({...form,WorkingDirectory:e.target.value})}/><small>工具以当前用户权限自动执行，此目录用于解析相对路径，不限制访问范围。</small></label>
       <label>上下文压缩大小（KB）<input required type="number" min="16" max="2048" value={Math.round(form.ContextCompressionBytes/1024)} onChange={e=>setForm({...form,ContextCompressionBytes:Math.round(Number(e.target.value)*1024)})}/><small>超过此大小会自动移除最早的对话内容，默认 128 KB。</small></label>
+      <label>翻译引擎<select value={form.TranslationEngine} onChange={e=>setForm({...form,TranslationEngine:e.target.value as Config['TranslationEngine']})}><option value="model">当前模型服务</option><option value="apple">Apple 本地翻译</option></select><small>Apple 本地翻译在本机完成，首次使用需按系统提示下载语言包；失败时自动改用当前模型服务。</small></label>
       <label className="settings-check"><input type="checkbox" checked={form.ReasoningControl} onChange={e=>setForm({...form,ReasoningControl:e.target.checked})}/>发送思考控制参数</label>
       </div>}
       {tab==='prompt' && <div>

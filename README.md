@@ -33,6 +33,7 @@ SynorTool 是 Synor 的第一款产品，将 AI 对话、快捷翻译与本地�
 - **随时唤起**：常驻菜单栏，连按两次左或右 Option 显示窗口；Esc 隐藏，隐藏后保留当前对话。
 - **流式 AI 对话**：支持多轮上下文、停止生成、Markdown 与数学公式渲染、复制回答和剪贴板图片输入。图片理解需要模型支持视觉。
 - **快捷翻译**：选中文字后连按两次 Option，将选区带入独立翻译窗口；支持目标语言选择、流式输出、停止和复制。翻译不启用 Agent 工具。
+- **Apple 本地翻译（可选）**：在配置的“上下文与生成”中把翻译引擎切换为 Apple 本地翻译后，快捷翻译和 Codex 输入框翻译都通过 macOS Translation 在本机完成，不调用模型服务；首次使用按系统提示下载语言包，macOS 26.4+ 使用低延迟策略。本地翻译失败时自动改用当前模型服务。
 - **本地 Agent**：提供 `read`、`grep`、`find`、`ls`、`write`、`edit`、`bash` 和 `web_fetch`，可查看工具调用的参数、状态与输出。
 - **自选模型服务**：连接支持 OpenAI Responses API 的服务，配置基础地址、模型、API Key、附加提示词和思考控制，并从服务端获取模型列表。
 - **用量信息**：显示首 Token 耗时、输出速度、上下文与累计 Token 用量；服务端返回缓存数据时显示缓存率。用量以服务端返回值为准。
@@ -42,7 +43,7 @@ SynorTool 是 Synor 的第一款产品，将 AI 对话、快捷翻译与本地�
 ### 环境要求
 
 - Apple Silicon Mac，macOS 26 或更高版本。
-- Xcode 及 macOS 26 SDK，确保 `xcrun clang` 可用。
+- Xcode 及 macOS 26 SDK，确保 `xcrun clang` 与 `xcrun swiftc` 可用。
 - .NET SDK **10.0.400**（允许更新的同系列补丁版本，见 `global.json`）。
 - Node.js 与 npm，用于安装、检查和构建前端。
 - 一个支持 **OpenAI Responses API** 的本地或远程模型服务。
