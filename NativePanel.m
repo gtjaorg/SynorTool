@@ -23,10 +23,11 @@ void synor_chat_event(const char *json) {
                 [backgroundTranslationText appendString:event[@"text"]];
             }
             if (event[@"done"] || event[@"error"]) {
-                NSString *result = backgroundTranslationText.length ? backgroundTranslationText : nil;
+                // 出错时已累积的只是半截译文，不能写回；无论成功与否都通知，以便释放回填状态。
+                NSString *result = !event[@"error"] && backgroundTranslationText.length ? backgroundTranslationText : nil;
                 backgroundTranslationText = nil;
                 backgroundTranslationID = nil;
-                if (result.length) [[NSNotificationCenter defaultCenter] postNotificationName:@"SynorBackgroundTranslationDone" object:result];
+                [[NSNotificationCenter defaultCenter] postNotificationName:@"SynorBackgroundTranslationDone" object:result];
             }
             // 后台翻译的所有事件都不转发给网页，避免出现在聊天或翻译面板里。
             return;
@@ -322,6 +323,12 @@ static BOOL SynorElementIsEditable(AXUIElementRef element) {
 @property(strong) NSURL *settingsURL;
 @end
 @implementation PanelController
+- (void)clearBackgroundTranslation {
+    if (self.backgroundElement) CFRelease(self.backgroundElement);
+    self.backgroundElement = NULL;
+    self.backgroundOriginal = nil;
+    self.backgroundHasSelection = NO;
+}
 - (void)applicationDidFinishLaunching:(NSNotification *)notification {
     (void)notification;
     __weak PanelController *backgroundWeakSelf = self;
@@ -331,12 +338,13 @@ static BOOL SynorElementIsEditable(AXUIElementRef element) {
     }];
     [[NSNotificationCenter defaultCenter] addObserverForName:@"SynorBackgroundTranslationDone" object:nil queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification *note) {
         PanelController *owner = backgroundWeakSelf; NSString *translated = note.object;
-        if (!owner || !owner.backgroundElement || !translated.length) return;
+        if (!owner) return;
+        if (!owner.backgroundElement || !translated.length) { [owner clearBackgroundTranslation]; return; }
         CFTypeRef current = NULL;
         NSString *currentText = nil;
         if (AXUIElementCopyAttributeValue(owner.backgroundElement, kAXValueAttribute, &current) == kAXErrorSuccess && current && CFGetTypeID(current) == CFStringGetTypeID()) currentText = (__bridge NSString *)current;
-        // 原文已变化（用户继续输入）时不覆盖，避免把新内容冲掉；读不到原值时按可写处理。
-        BOOL unchanged = owner.backgroundOriginal == nil || (currentText && [currentText isEqual:owner.backgroundOriginal]);
+        // 只有能核对到完整原值未变时才写回；用户继续输入或读不到原值时放弃，避免冲掉新内容。
+        BOOL unchanged = owner.backgroundOriginal && currentText && [currentText isEqual:owner.backgroundOriginal];
         if (unchanged && currentText) {
             NSRange selection = owner.backgroundSelection;
             if (owner.backgroundHasSelection && NSMaxRange(selection) <= currentText.length) {
@@ -347,15 +355,10 @@ static BOOL SynorElementIsEditable(AXUIElementRef element) {
                     AXValueRef range = AXValueCreate(kAXValueCFRangeType, &caret);
                     if (range) { AXUIElementSetAttributeValue(owner.backgroundElement, kAXSelectedTextRangeAttribute, range); CFRelease(range); }
                 }
-            } else {
-                // 没有选区范围信息时退化为整框替换（与旧行为一致）。
-                AXUIElementSetAttributeValue(owner.backgroundElement, kAXValueAttribute, (__bridge CFStringRef)translated);
             }
-        } else if (unchanged) {
-            // 应用不暴露 AXValue（Chromium 未建树等）时，尝试直接替换当前选区。
-            AXUIElementSetAttributeValue(owner.backgroundElement, kAXSelectedTextAttribute, (__bridge CFStringRef)translated);
         }
-        if (current) CFRelease(current); CFRelease(owner.backgroundElement); owner.backgroundElement = NULL; owner.backgroundOriginal = nil; owner.backgroundHasSelection = NO;
+        if (current) CFRelease(current);
+        [owner clearBackgroundTranslation];
     }];
     self.panel = [[SynorPanel alloc] initWithContentRect:NSMakeRect(0, 0, 680, 740)
         styleMask:NSWindowStyleMaskBorderless | NSWindowStyleMaskNonactivatingPanel | NSWindowStyleMaskResizable
@@ -559,6 +562,13 @@ static BOOL SynorElementIsEditable(AXUIElementRef element) {
 - (void)applicationWillTerminate:(NSNotification *)notification {
     (void)notification;
     [self.selectionTimer invalidate];
+    if (backgroundTranslationID && chatRequest) {
+        NSData *cancel = [NSJSONSerialization dataWithJSONObject:@{ @"type": @"cancel", @"id": backgroundTranslationID } options:0 error:nil];
+        if (cancel) chatRequest([[NSString alloc] initWithData:cancel encoding:NSUTF8StringEncoding].UTF8String);
+    }
+    backgroundTranslationID = nil;
+    backgroundTranslationText = nil;
+    [self clearBackgroundTranslation];
     // 退出前主动落盘，确保最后一次移动/缩放也被记住。
     [self.panel saveFrameUsingName:@"SynorMainWindow"];
     [self.translationPanel saveFrameUsingName:@"SynorTranslationWindow"];
@@ -605,14 +615,13 @@ static BOOL SynorElementIsEditable(AXUIElementRef element) {
     if (!text.length || !element || !application || ![application.bundleIdentifier isEqual:@"com.openai.codex"] || !chatRequest) return NO;
     // 静态选区（例如 AI 回复正文）没有可写回的输入框，交给翻译面板处理。
     if (!SynorElementIsEditable(element)) return NO;
-    if (self.backgroundElement) CFRelease(self.backgroundElement);
-    self.backgroundElement = (AXUIElementRef)CFRetain(element);
     // 记录全框原值与选区范围：之后按范围做就地替换，而不是用译文覆盖整个输入框。
     CFTypeRef value = NULL;
     NSString *fullText = nil;
     if (AXUIElementCopyAttributeValue(element, kAXValueAttribute, &value) == kAXErrorSuccess && value && CFGetTypeID(value) == CFStringGetTypeID()) fullText = [(__bridge NSString *)value copy];
     if (value) CFRelease(value);
-    self.backgroundOriginal = fullText;
+    // 没有可核对的原值快照就无法安全写回，交给翻译面板处理。
+    if (!fullText) return NO;
     NSRange selection = NSMakeRange(NSNotFound, 0);
     CFTypeRef range = NULL;
     if (AXUIElementCopyAttributeValue(element, kAXSelectedTextRangeAttribute, &range) == kAXErrorSuccess && range && CFGetTypeID(range) == AXValueGetTypeID()) {
@@ -620,6 +629,13 @@ static BOOL SynorElementIsEditable(AXUIElementRef element) {
         if (AXValueGetValue((AXValueRef)range, kAXValueCFRangeType, &selected)) selection = NSMakeRange((NSUInteger)selected.location, (NSUInteger)selected.length);
     }
     if (range) CFRelease(range);
+    // 选区范围必须落在原值内且与读到的选中文字一致，否则回填位置不可信。
+    if (selection.location == NSNotFound || selection.location > fullText.length ||
+        selection.length > fullText.length - selection.location ||
+        ![[fullText substringWithRange:selection] isEqualToString:text]) return NO;
+    [self clearBackgroundTranslation];
+    self.backgroundElement = (AXUIElementRef)CFRetain(element);
+    self.backgroundOriginal = fullText;
     self.backgroundSelection = selection;
     self.backgroundHasSelection = selection.location != NSNotFound;
     NSString *requestID = [NSUUID UUID].UUIDString;
